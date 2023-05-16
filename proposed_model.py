@@ -102,8 +102,9 @@ class EncoderLayer(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_seq_length):
+    def __init__(self, d_model, max_seq_length, tokenizer):
         super(PositionalEncoding, self).__init__()
+        self.tokenizer = tokenizer
         
         # Create a tensor of shape (max_seq_length, d_model) filled with zeros
         pe = torch.zeros(max_seq_length, d_model)
@@ -124,7 +125,7 @@ class PositionalEncoding(nn.Module):
     
     def position(self, t):
         res = torch.zeros_like(t)
-        for i, sep in enumerate((t == tk2num['<SEP>']).nonzero().flatten().tolist()):
+        for i, sep in enumerate((t == self.tokenizer['<SEP>']).nonzero().flatten().tolist()):
             res[sep:] = i + 1
         return res.long().tolist()
         
@@ -137,11 +138,11 @@ class PositionalEncoding(nn.Module):
 
 
 class TransformerEncoder(nn.Module):
-    def __init__(self, vocab_size, d_model, num_heads, d_ff, num_layers, output_sz, dropout=0.1, max_seq_length=200, seg=0):
+    def __init__(self, vocab_size, d_model, num_heads, d_ff, num_layers, output_sz, tokenizer, dropout=0.1, max_seq_length=200, seg=0):
         super(TransformerEncoder, self).__init__()
         
         self.embedding = nn.Embedding(vocab_size, d_model)
-        self.pos_enc = PositionalEncoding(d_model, max_seq_length)
+        self.pos_enc = PositionalEncoding(d_model, max_seq_length, tokenizer)
         self.dropout = nn.Dropout(dropout)
         
         self.layers = nn.ModuleList([EncoderLayer(d_model, num_heads, d_ff, dropout) for _ in range(num_layers)])
