@@ -8,55 +8,55 @@ class MultiHeadAttention(nn.Module):
     def __init__(self, d_model, num_heads):
         super(MultiHeadAttention, self).__init__()
         
-        # Проверка, что d_model (размерность входного тензора) делится на num_heads (количество голов)
+        # Checking that d_model (input tensor dimension) is divisible by num_heads (number of heads)
         assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
         
-        # Задаем параметры
+        # Set parameters
         self.d_model = d_model
         self.num_heads = num_heads
         self.d_k = d_model // num_heads
         
-        # Задаем четыре линейные преобразования для Q, K, V и объединенного вывода
+        # Specify four linear transformations for Q, K, V and combined output
         self.W_q = nn.Linear(d_model, d_model)
         self.W_k = nn.Linear(d_model, d_model)
         self.W_v = nn.Linear(d_model, d_model)
         self.W_o = nn.Linear(d_model, d_model)
         
     def scaled_dot_product_attention(self, Q, K, V, mask=None):
-        # Матричное умножение для получения матрицы скалярных произведений
+        # Matrix multiplication to get a matrix of dot products
         attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / np.sqrt(self.d_k)
         
-        # Применение маски, если она имеется
+        # Applying a mask, if available
         if mask is not None:
             attn_scores = attn_scores.masked_fill(mask == 0, -1e9)
         
-        # Применение функции softmax для получения вероятностей
+        # Using the softmax function to get probabilities
         attn_probs = torch.softmax(attn_scores, dim=-1)
         
-        # Матричное умножение вероятностей на значение V
+        # Matrix multiplication of probabilities by value V
         output = torch.matmul(attn_probs, V)
         return output
         
     def split_heads(self, x):
-        # Разбиение входного тензора на num_heads частей
+        # Splitting the input tensor into num_heads parts
         batch_size, seq_length, d_model = x.size()
         return x.view(batch_size, seq_length, self.num_heads, self.d_k).transpose(1, 2)
         
     def combine_heads(self, x):
-        # Объединение num_heads частей в один тензор
+        # Combining num_heads parts into one tensor
         batch_size, _, seq_length, d_k = x.size()
         return x.transpose(1, 2).contiguous().view(batch_size, seq_length, self.d_model)
         
     def forward(self, Q, K, V, mask=None):
-        # Применяем линейные преобразования для получения Q, K, V
+        # Apply linear transformations to get Q, K, V
         Q = self.split_heads(self.W_q(Q))
         K = self.split_heads(self.W_k(K))
         V = self.split_heads(self.W_v(V))
         
-        # Вызываем метод многоголового внимания для получения attn_output
+        # Call the multi-head attention method
         attn_output = self.scaled_dot_product_attention(Q, K, V, mask)
         
-        # Объединяем num_heads частей в один тензор и применяем линейное преобразование для получения output
+        # Combine num_heads parts into one tensor and apply linear transformation
         output = self.W_o(self.combine_heads(attn_output))
         return output
 
@@ -64,24 +64,19 @@ class MultiHeadAttention(nn.Module):
 class PositionWiseFeedForward(nn.Module):
     def __init__(self, d_model, d_ff):
         super(PositionWiseFeedForward, self).__init__()
-        # Создаем два линейных слоя
         self.fc1 = nn.Linear(d_model, d_ff)
         self.fc2 = nn.Linear(d_ff, d_model)
         self.relu = nn.ReLU()
 
     def forward(self, x):
-        # Проходим через первый линейный слой и применяем функцию активации ReLU
         output = self.relu(self.fc1(x))
-        # Проходим через второй линейный слой
         output = self.fc2(output)
-        # Возвращаем выходной тензор
         return output
 
 
 class EncoderLayer(nn.Module):
     def __init__(self, d_model, num_heads, d_ff, dropout):
         super(EncoderLayer, self).__init__()
-        # Инициализируем механизм внимания, прямой проход с обратной связью и нормализацию
         self.self_attn = MultiHeadAttention(d_model, num_heads)
         self.feed_forward = PositionWiseFeedForward(d_model, d_ff)
         self.norm1 = nn.LayerNorm(d_model)
@@ -89,15 +84,10 @@ class EncoderLayer(nn.Module):
         self.dropout = nn.Dropout(dropout)
         
     def forward(self, x, mask):
-        # Проходим входной тензор через механизм внимания
         attn_output = self.self_attn(x, x, x, mask)
-        # Добавляем результат механизма внимания к входному тензору, нормализуем и применяем dropout
         x = self.norm1(x + self.dropout(attn_output))
-        # Проходим полученный тензор через прямой проход с обратной связью
         ff_output = self.feed_forward(x)
-        # Добавляем результат прямого прохода к входному тензору, нормализуем и применяем dropout
         x = self.norm2(x + self.dropout(ff_output))
-        # Возвращаем выходной тензор
         return x
 
 
